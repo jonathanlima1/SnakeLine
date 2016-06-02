@@ -3,6 +3,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 
 #include <vector>
+#include <time.h>
 
 #define RADIUS 20
 
@@ -18,21 +19,13 @@ Scalar s = Scalar(255,0,0);
 
 VideoCapture cap;
 Mat image, mouse, game, frame;
-vector<pos> snake;
-int size = 1;
-pos newPos;
+vector<pos> snake, list;
+int size = 1, iter = 0;
+pos newPos, mouseP;
 
-int width = 3, tickness = 8, shift = 0;
+int width = 8, tickness = 8, shift = 0;
 
 char key;
-
-bool needToInit = false;
-bool nightMode = false;
-const int MAX_COUNT = 500;
-TermCriteria termcrit(TermCriteria::COUNT|TermCriteria::EPS,20,0.03);
-Size subPixWinSize(10,10), winSize(31,31);
-Mat gray, prevGray;
-vector<Point2f> points[2];
 
 void updateScene(){
     frame.copyTo(game);
@@ -51,6 +44,13 @@ void updateScene(){
             line(game, pt1, pt2, s, width, tickness, shift);
         }
     }
+
+    for(int i = 0; i < mouse.size().height; i++)
+        for (int j = 0; j < mouse.size().width; j++){
+            Vec3b v = mouse.at<Vec3b>(i,j);
+            if(v[0] != 0 || v[1] != 0 || v[2] != 0)
+                game.at<Vec3b>(i + mouseP.x,j + mouseP.y) = mouse.at<Vec3b>(i,j);
+        }
 }
 
 void updateSnake(){
@@ -74,103 +74,76 @@ void updateSnake(){
         }
 }
 
-Point2f point;
-bool addRemovePt = false;
-
-static void onMouse( int event, int x, int y, int /*flags*/, void* /*param*/ )
-{
-    if( event == EVENT_LBUTTONDOWN )
-    {
-        point = Point2f((float)x, (float)y);
-
-        pos p;
-
-        p.x = x;
-        p.y = y;
-
-        snake.clear();
-
-        snake.push_back(p);
-
-        addRemovePt = true;
-    }
-}
-
 void findNewPos(){
-    cvtColor(image, gray, COLOR_BGR2GRAY);
+    Mat imageHsv;
 
-    if( nightMode )
-        image = Scalar::all(0);
+    cvtColor(image, imageHsv, COLOR_BGR2HSV);
 
-    if( needToInit )
-    {
-        // automatic initialization
-        goodFeaturesToTrack(gray, points[1], MAX_COUNT, 0.01, 10, Mat(), 3, 0, 0.04);
-        cornerSubPix(gray, points[1], subPixWinSize, Size(-1,-1), termcrit);
-        addRemovePt = false;
-    }
-    else if( !points[0].empty() )
-    {
-        if( needToInit )
-        {
-            // automatic initialization
-            goodFeaturesToTrack(gray, points[1], MAX_COUNT, 0.01, 10, Mat(), 3, 0, 0.04);
-            cornerSubPix(gray, points[1], subPixWinSize, Size(-1,-1), termcrit);
-            addRemovePt = false;
+    Mat imageThresh, imageThresh1, imageThresh2;
+
+    inRange(imageHsv, cv::Scalar(10, 190, 80), cv::Scalar(90, 255, 255), imageThresh);      //Yellow
+   // inRange(imageHsv, cv::Scalar(0, 100, 100), cv::Scalar(10, 255, 255), imageThresh);   // Red
+   // inRange(imageHsv, cv::Scalar(110, 50, 50), cv::Scalar(130, 255, 255), imageThresh);   //  Blue
+   // inRange(imageHsv, cv::Scalar(0, 100, 100), cv::Scalar(10, 255, 255), imageThresh1);
+  // inRange(imageHsv, cv::Scalar(160, 100, 100), cv::Scalar(179, 255, 255), imageThresh2);
+
+ //  addWeighted(imageThresh1, 1.0, imageThresh2, 1.0, 0.0, imageThresh);
+
+    GaussianBlur(imageThresh, imageThresh, Size(9, 9), 2, 2);
+
+    vector<Vec3f> circles;
+    //HoughCircles(imageThresh, circles, CV_HOUGH_GRADIENT, 1, imageThresh.rows/8, 100, 20, 0, 0);
+
+    Moments m = moments(imageThresh, true);
+    Point center;
+
+    //if(circles.size() > 0){
+        //center = Point(round(circles[0][0]), round(circles[0][1]));
+    if(m.m00 !=0){
+        center = Point(m.m10/m.m00, m.m01/m.m00);
+
+        pos p1;
+
+        p1.x = center.x;
+        p1.y = center.y;
+
+        if(list.size() == 5)
+            list.erase(list.begin());
+
+        list.push_back(p1);
+
+        printf("%d %d %d\n", center.x, center.y, (int)snake.size());
+
+        if(snake.size() == 0){
+            pos p;
+
+            p.x = center.x;
+            p.y = center.y;
+
+            snake.push_back(p);
+
+            Point2f point;
+            point.x = p.x;
+            point.y = p.y;
+
         }
-        else if( !points[0].empty() )
-        {
-            vector<uchar> status;
-            vector<float> err;
-            if(prevGray.empty())
-                gray.copyTo(prevGray);
-            calcOpticalFlowPyrLK(prevGray, gray, points[0], points[1], status, err, winSize,
-                    3, termcrit, 0, 0.001);
-            size_t i, k;
-            for( i = k = 0; i < points[1].size(); i++ )
-            {
-                if( addRemovePt )
-                {
-                    if( norm(point - points[1][i]) <= 5 )
-                    {
-                        addRemovePt = false;
-                        continue;
-                    }
-                }
 
-                if( !status[i] )
-                    continue;
-
-                points[1][k++] = points[1][i];
-                circle( image, points[1][i], 3, Scalar(0,255,0), -1, 8);
-            }
-            points[1].resize(k);
+        int meanX = 0, meanY = 0;
+        for(int i = 0; i<list.size(); i++){
+            meanX += list[i].x;
+            meanY += list[i].y;
         }
+
+        newPos.x = meanX/list.size();
+        newPos.y = meanY/list.size();
     }
-
-    if( addRemovePt && points[1].size() < (size_t)MAX_COUNT )
-    {
-        vector<Point2f> tmp;
-        tmp.push_back(point);
-        cornerSubPix( gray, tmp, winSize, Size(-1,-1), termcrit);
-        points[1].push_back(tmp[0]);
-        addRemovePt = false;
-    }
-
-    needToInit = false;
-
-    if(points[1].size() > 0){
-        newPos.x = points[1][0].x;
-        newPos.y = points[1][0].y;
-    }
-
-    needToInit = false;
-
-    std::swap(points[1], points[0]);
-    cv::swap(prevGray, gray);
 }
 
 bool checkGame(){
+
+    /*Vec3b val = game.at<Vec3b>(newPos.x, newPos.y);
+    
+    return val[0] == 255 && val[1] == 0 && val[2] == 0;*/
 
     if(snake.size() > 0)
         for(int i=0; i<snake.size()-1; i++)
@@ -178,6 +151,21 @@ bool checkGame(){
                 return true;
 
     return false;
+}
+
+void updateMouse(){
+    srand(time(NULL));
+
+    mouseP.x = rand()%400;
+    mouseP.y = rand()%500;
+}
+
+void checkMouse(){
+    if(newPos.x > mouseP.x && newPos.y > mouseP.y){
+        size++;
+
+        updateMouse();
+    }
 }
 
 int main(int , char**){
@@ -191,8 +179,11 @@ int main(int , char**){
     // informacoes de gravação
     cap >> frame;
 
+    mouse = imread("rato.png");
+
     namedWindow("Snake", 1);
-    setMouseCallback( "Snake", onMouse, 0 );
+
+    updateMouse();
 
     for(;;){
         cap >> frame;
@@ -201,8 +192,12 @@ int main(int , char**){
 
         findNewPos();
 
+        updateScene();
+
         if( checkGame() )
             break;
+
+        checkMouse();
 
         updateSnake();
 
