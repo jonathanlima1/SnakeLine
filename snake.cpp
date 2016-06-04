@@ -20,7 +20,7 @@ Scalar s = Scalar(255,0,0);
 VideoCapture cap;
 Mat image, mouse, game, frame;
 vector<pos> snake, list;
-int size = 1, iter = 0;
+int size = 10, iter = 0;
 pos newPos, mouseP;
 
 int width = 8, tickness = 8, shift = 0;
@@ -40,8 +40,8 @@ void updateScene(){
             printf("ponto %d : %d %d\n", i, snake[i].x, snake[i].y);
             Point pt1 = Point(snake[i-1].x, snake[i-1].y);
             Point pt2 = Point(snake[i].x, snake[i].y);
-
-            line(game, pt1, pt2, s, width, tickness, shift);
+            circle( game, pt1, 5, Scalar(255,0,0), -1, 8);
+            //line(game, pt1, pt2, s, width, tickness, shift);
         }
     }
 
@@ -49,7 +49,7 @@ void updateScene(){
         for (int j = 0; j < mouse.size().width; j++){
             Vec3b v = mouse.at<Vec3b>(i,j);
             if(v[0] != 0 || v[1] != 0 || v[2] != 0)
-                game.at<Vec3b>(i + mouseP.x,j + mouseP.y) = mouse.at<Vec3b>(i,j);
+                game.at<Vec3b>(i + mouseP.y,j + mouseP.x) = mouse.at<Vec3b>(i,j);
         }
 }
 
@@ -70,7 +70,7 @@ void updateSnake(){
             point.x = p.x;
             point.y = p.y;
 
-            circle( image, point, 3, Scalar(255,0,0), -1, 8);
+        //    circle( image, point, 3, Scalar(255,0,0), -1, 8);
         }
 }
 
@@ -102,17 +102,17 @@ void findNewPos(){
     if(m.m00 !=0){
         center = Point(m.m10/m.m00, m.m01/m.m00);
 
+        printf("%d %d %d\n", center.x, center.y, (int)snake.size());
+
         pos p1;
 
         p1.x = center.x;
         p1.y = center.y;
 
-        if(list.size() == 5)
+        if(list.size() == 10)
             list.erase(list.begin());
 
         list.push_back(p1);
-
-        printf("%d %d %d\n", center.x, center.y, (int)snake.size());
 
         if(snake.size() == 0){
             pos p;
@@ -122,20 +122,26 @@ void findNewPos(){
 
             snake.push_back(p);
 
-            Point2f point;
-            point.x = p.x;
-            point.y = p.y;
-
         }
 
         int meanX = 0, meanY = 0;
-        for(int i = 0; i<list.size(); i++){
+
+        for(int i = 0; i < 10; i++){
             meanX += list[i].x;
             meanY += list[i].y;
         }
 
-        newPos.x = meanX/list.size();
-        newPos.y = meanY/list.size();
+        newPos.x = meanX / 10;
+        newPos.y = meanY / 10;
+
+        //newPos.x = center.x;
+        //newPos.y = center.y;
+
+        Point2f point;
+        point.x = center.x;
+        point.y = center.y;
+
+        circle( image, point, 3, Scalar(255,0,0), -1, 8);
     }
 }
 
@@ -161,7 +167,10 @@ void updateMouse(){
 }
 
 void checkMouse(){
-    if(newPos.x > mouseP.x && newPos.y > mouseP.y){
+    printf("X: %d, Y: %d \n", mouseP.x, mouseP.y);
+
+    if(newPos.x >= mouseP.x && newPos.x <= (mouseP.x + mouse.size().width) 
+        && newPos.y >= mouseP.y && newPos.y <= (mouseP.y + mouse.size().height)){
         size++;
 
         updateMouse();
@@ -191,8 +200,6 @@ int main(int , char**){
         frame.copyTo(image);
 
         findNewPos();
-
-        updateScene();
 
         if( checkGame() )
             break;
