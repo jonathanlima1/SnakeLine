@@ -19,7 +19,7 @@ Scalar s = Scalar(255,0,0);
 
 VideoCapture cap;
 Mat image, mouse, game, frame;
-vector<pos> snake, list;
+vector<pos> snake, list, listBlue;
 int size = 10, iter = 0;
 pos newPos, mouseP;
 
@@ -34,14 +34,15 @@ void updateScene(){
         Point pt1 = Point(snake[0].x, snake[0].y);
         Point pt2 = Point(snake[0].x, snake[0].y);
 
-        line(game, pt1, pt2, s, width, tickness, shift);
+        //line(game, pt1, pt2, s, width, tickness, shift);
+        circle( game, pt1, 5 , Scalar(255,0,0), -1, 8);
 
         for(int i = 1; i<snake.size();i++){
-            printf("ponto %d : %d %d\n", i, snake[i].x, snake[i].y);
             Point pt1 = Point(snake[i-1].x, snake[i-1].y);
             Point pt2 = Point(snake[i].x, snake[i].y);
-            circle( game, pt1, 5, Scalar(255,0,0), -1, 8);
-            //line(game, pt1, pt2, s, width, tickness, shift);
+
+            //circle( game, pt1, 5 , Scalar(255,0,0), -1, 8);
+            line(game, pt1, pt2, s, width, tickness, shift);
         }
     }
 
@@ -50,6 +51,20 @@ void updateScene(){
             Vec3b v = mouse.at<Vec3b>(i,j);
             if(v[0] != 0 || v[1] != 0 || v[2] != 0)
                 game.at<Vec3b>(i + mouseP.y,j + mouseP.x) = mouse.at<Vec3b>(i,j);
+        }
+
+    listBlue.clear();
+
+    for(int i = 0; i < game.size().height; i++)
+        for (int j = 0; j < game.size().width; j++){
+            Vec3b v = game.at<Vec3b>(i,j);
+
+            if(v[0] == 255 && v[1] == 0 && v[2] == 0){
+                pos p;
+                p.x = j;
+                p.y = i;
+                listBlue.push_back(p);
+            }
         }
 }
 
@@ -70,7 +85,6 @@ void updateSnake(){
             point.x = p.x;
             point.y = p.y;
 
-        //    circle( image, point, 3, Scalar(255,0,0), -1, 8);
         }
 }
 
@@ -84,77 +98,57 @@ void findNewPos(){
     inRange(imageHsv, cv::Scalar(10, 190, 80), cv::Scalar(90, 255, 255), imageThresh);      //Yellow
    // inRange(imageHsv, cv::Scalar(0, 100, 100), cv::Scalar(10, 255, 255), imageThresh);   // Red
    // inRange(imageHsv, cv::Scalar(110, 50, 50), cv::Scalar(130, 255, 255), imageThresh);   //  Blue
-   // inRange(imageHsv, cv::Scalar(0, 100, 100), cv::Scalar(10, 255, 255), imageThresh1);
-  // inRange(imageHsv, cv::Scalar(160, 100, 100), cv::Scalar(179, 255, 255), imageThresh2);
-
- //  addWeighted(imageThresh1, 1.0, imageThresh2, 1.0, 0.0, imageThresh);
 
     GaussianBlur(imageThresh, imageThresh, Size(9, 9), 2, 2);
-
-    vector<Vec3f> circles;
-    //HoughCircles(imageThresh, circles, CV_HOUGH_GRADIENT, 1, imageThresh.rows/8, 100, 20, 0, 0);
 
     Moments m = moments(imageThresh, true);
     Point center;
 
-    //if(circles.size() > 0){
-        //center = Point(round(circles[0][0]), round(circles[0][1]));
     if(m.m00 !=0){
         center = Point(m.m10/m.m00, m.m01/m.m00);
 
-        printf("%d %d %d\n", center.x, center.y, (int)snake.size());
+        pos p;
 
-        pos p1;
+        p.x = center.x;
+        p.y = center.y;
 
-        p1.x = center.x;
-        p1.y = center.y;
+        if(p.x != 0 && p.y != 0){
+            if(list.size() == 10)
+                list.erase(list.begin());
 
-        if(list.size() == 10)
-            list.erase(list.begin());
+            list.push_back(p);
 
-        list.push_back(p1);
-
-        if(snake.size() == 0){
-            pos p;
-
-            p.x = center.x;
-            p.y = center.y;
-
-            snake.push_back(p);
-
+            if(snake.size() == 0)
+                snake.push_back(p);
         }
 
         int meanX = 0, meanY = 0;
 
-        for(int i = 0; i < 10; i++){
+        for(int i = 0; i < list.size(); i++){
             meanX += list[i].x;
             meanY += list[i].y;
         }
 
         newPos.x = meanX / 10;
         newPos.y = meanY / 10;
-
-        //newPos.x = center.x;
-        //newPos.y = center.y;
-
-        Point2f point;
-        point.x = center.x;
-        point.y = center.y;
-
-        circle( image, point, 3, Scalar(255,0,0), -1, 8);
     }
 }
 
 bool checkGame(){
 
-    /*Vec3b val = game.at<Vec3b>(newPos.x, newPos.y);
-    
-    return val[0] == 255 && val[1] == 0 && val[2] == 0;*/
+    if(snake.size() > 9)
+        if(newPos.x != snake.back().x || newPos.y != snake.back().y){
+            printf("%d\n", (int)listBlue.size());
+            for(int i = 0; i < listBlue.size(); i++){
+                pos p = listBlue[i];
 
-    if(snake.size() > 0)
-        for(int i=0; i<snake.size()-1; i++)
-            if(snake[i].x == newPos.x && snake[i].y == newPos.y)
-                return true;
+                if(p.x == newPos.x && p.y == newPos.y){
+                    printf("X:%d Y:%d\n", newPos.x, newPos.y);
+                    printf("%d %d\n", p.x, p.y);
+                    return true;
+                }
+            }
+        }
 
     return false;
 }
@@ -162,16 +156,14 @@ bool checkGame(){
 void updateMouse(){
     srand(time(NULL));
 
-    mouseP.x = rand()%400;
-    mouseP.y = rand()%500;
+    mouseP.x = rand()%500;
+    mouseP.y = rand()%350;
 }
 
 void checkMouse(){
-    printf("X: %d, Y: %d \n", mouseP.x, mouseP.y);
-
     if(newPos.x >= mouseP.x && newPos.x <= (mouseP.x + mouse.size().width) 
         && newPos.y >= mouseP.y && newPos.y <= (mouseP.y + mouse.size().height)){
-        size++;
+        size += 4;
 
         updateMouse();
     }
@@ -194,6 +186,8 @@ int main(int , char**){
 
     updateMouse();
 
+    frame.copyTo(game);
+
     for(;;){
         cap >> frame;
 
@@ -201,14 +195,14 @@ int main(int , char**){
 
         findNewPos();
 
-        if( checkGame() )
-            break;
-
         checkMouse();
 
         updateSnake();
 
         updateScene();
+
+        if( checkGame() )
+            break;
 
         imshow("Snake", game);
 
@@ -216,6 +210,17 @@ int main(int , char**){
         if( key == 27 ) break;
 
     }
+
+    int ratos = (size-10)/4;
+
+    printf("\n\n\n\n\nVoce comeu %d Ratos!\n", ratos);
+
+    if(ratos < 2)
+        printf("Voce e horrivel\n");
+    else if(ratos < 8)
+        printf("Shooooow !\n");
+    else
+        printf("Mitoooooooooooooooooooooooooou!!!!!!!!!!!\n");
 
     return 0;
 }
